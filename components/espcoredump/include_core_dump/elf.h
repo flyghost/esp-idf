@@ -97,134 +97,190 @@ typedef int64_t Elf64_Sxword;
 #define STT_TLS 6
 
 #define ELF_ST_BIND(x) ((x) >> 4)
-#define ELF_ST_TYPE(x) (((unsigned int) x) & 0xf)
+#define ELF_ST_TYPE(x) (((unsigned int)x) & 0xf)
 #define ELF32_ST_BIND(x) ELF_ST_BIND(x)
 #define ELF32_ST_TYPE(x) ELF_ST_TYPE(x)
 #define ELF64_ST_BIND(x) ELF_ST_BIND(x)
 #define ELF64_ST_TYPE(x) ELF_ST_TYPE(x)
 
-typedef struct dynamic{
- Elf32_Sword d_tag;
- union{
- Elf32_Sword d_val;
- Elf32_Addr d_ptr;
- } d_un;
+typedef struct dynamic
+{
+    Elf32_Sword d_tag;
+    union
+    {
+        Elf32_Sword d_val;
+        Elf32_Addr d_ptr;
+    } d_un;
 } Elf32_Dyn;
 
-typedef struct {
- Elf64_Sxword d_tag;
- union {
- Elf64_Xword d_val;
- Elf64_Addr d_ptr;
- } d_un;
+typedef struct
+{
+    Elf64_Sxword d_tag;
+    union
+    {
+        Elf64_Xword d_val;
+        Elf64_Addr d_ptr;
+    } d_un;
 } Elf64_Dyn;
 
 #define ELF32_R_SYM(x) ((x) >> 8)
-#define ELF32_R_TYPE(x) ((x) & 0xff)
+#define ELF32_R_TYPE(x) ((x)&0xff)
 
 #define ELF64_R_SYM(i) ((i) >> 32)
-#define ELF64_R_TYPE(i) ((i) & 0xffffffff)
+#define ELF64_R_TYPE(i) ((i)&0xffffffff)
 
-typedef struct elf32_rel {
- Elf32_Addr r_offset;
- Elf32_Word r_info;
+typedef struct elf32_rel
+{
+    Elf32_Addr r_offset;
+    Elf32_Word r_info;
 } Elf32_Rel;
 
-typedef struct elf64_rel {
- Elf64_Addr r_offset;
- Elf64_Xword r_info;
+typedef struct elf64_rel
+{
+    Elf64_Addr r_offset;
+    Elf64_Xword r_info;
 } Elf64_Rel;
 
-typedef struct elf32_rela{
- Elf32_Addr r_offset;
- Elf32_Word r_info;
- Elf32_Sword r_addend;
+typedef struct elf32_rela
+{
+    Elf32_Addr r_offset;
+    Elf32_Word r_info;
+    Elf32_Sword r_addend;
 } Elf32_Rela;
 
-typedef struct elf64_rela {
- Elf64_Addr r_offset;
- Elf64_Xword r_info;
- Elf64_Sxword r_addend;
+typedef struct elf64_rela
+{
+    Elf64_Addr r_offset;
+    Elf64_Xword r_info;
+    Elf64_Sxword r_addend;
 } Elf64_Rela;
 
-typedef struct elf32_sym{
- Elf32_Word st_name;
- Elf32_Addr st_value;
- Elf32_Word st_size;
- unsigned char st_info;
- unsigned char st_other;
- Elf32_Half st_shndx;
+typedef struct elf32_sym
+{
+    Elf32_Word st_name;
+    Elf32_Addr st_value;
+    Elf32_Word st_size;
+    unsigned char st_info;
+    unsigned char st_other;
+    Elf32_Half st_shndx;
 } Elf32_Sym;
 
-typedef struct elf64_sym {
- Elf64_Word st_name;
- unsigned char st_info;
- unsigned char st_other;
- Elf64_Half st_shndx;
- Elf64_Addr st_value;
- Elf64_Xword st_size;
+typedef struct elf64_sym
+{
+    Elf64_Word st_name;
+    unsigned char st_info;
+    unsigned char st_other;
+    Elf64_Half st_shndx;
+    Elf64_Addr st_value;
+    Elf64_Xword st_size;
 } Elf64_Sym;
 
 #define EI_NIDENT 16
 
-typedef struct elf32_hdr{
- unsigned char e_ident[EI_NIDENT];
- Elf32_Half e_type;
- Elf32_Half e_machine;
- Elf32_Word e_version;
- Elf32_Addr e_entry;
- Elf32_Off e_phoff;
- Elf32_Off e_shoff;
- Elf32_Word e_flags;
- Elf32_Half e_ehsize;
- Elf32_Half e_phentsize;
- Elf32_Half e_phnum;
- Elf32_Half e_shentsize;
- Elf32_Half e_shnum;
- Elf32_Half e_shstrndx;
+typedef struct elf32_hdr
+{
+    /*
+        包含了Maigc Number和其它信息，共16字节。	
+        0~3：前4字节为Magic Number，固定为ELFMAG。
+        4（EI_CLASS）：ELFCLASS32代表是32位ELF，ELFCLASS64 代表64位ELF。
+        5（EI_DATA）：ELFDATA2LSB代表小端，ELFDATA2MSB代表大端。
+        6（EI_VERSION）：固定为EV_CURRENT（1）。
+        7（EI_OSABI）：操作系统ABI标识（实际未使用）。
+        8（EI_ABIVERSION）：ABI版本（实际 未使用）。
+        9~15：对齐填充，无实际意义。
+    */
+    unsigned char e_ident[EI_NIDENT];   /* Magic number and other info */
+
+    /*
+        ELF的文件类型，定义如下：
+        ET_REL		    可重定位文 件（如目标文件）
+        ET_EXEC	        可执行文件（可直接执行的文件）
+        DT_DYN	        共享目标文件（如SO库）
+        DT_CORE	        Core文件（吐核文件）
+        注：GCC使用编译选项 -pie 编译的可执行文件实际 也是DT_DYN类型。
+    */
+    Elf32_Half e_type;                  /* Object file type */
+
+    Elf32_Half e_machine;               /* Architecture */
+
+    /* 文件版本，目前常见的ELF 文件版本均为EV_CURRENT（1）。 */
+    Elf32_Word e_version;               /* Object file version */
+
+    /* 入口虚拟地址 */
+    Elf32_Addr e_entry;                 /* Entry point virtual address */
+
+    /* 段表文件偏移 */
+    Elf32_Off e_phoff;                  /* Program header table file offset */
+
+    /* 节表文件偏移 */
+    Elf32_Off e_shoff;                  /* Section header table file offset */
+
+    /* 处理器特定的标志，一般为0 */
+    Elf32_Word e_flags;                 /* Processor-specific flags */
+
+    /* Elf_Header的大小（字节） */
+    Elf32_Half e_ehsize;                /* ELF header size in bytes */
+
+    /* 段头（Program Header）的大小（字节） */
+    Elf32_Half e_phentsize;             /* Program header table entry size */
+
+    /* 段的数量 */
+    Elf32_Half e_phnum;                 /* Program header table entry count */
+
+    /* 节头（Section Header）的大小（字节） */
+    Elf32_Half e_shentsize;             /* Section header table entry size */
+
+    /* 字的数量 */
+    Elf32_Half e_shnum;                 /* Section header table entry count */
+
+    /* 节字符串表的节索引 */
+    Elf32_Half e_shstrndx;              /* Section header string table index */
 } Elf32_Ehdr;
 
-typedef struct elf64_hdr {
- unsigned char e_ident[16];
- Elf64_Half e_type;
- Elf64_Half e_machine;
- Elf64_Word e_version;
- Elf64_Addr e_entry;
- Elf64_Off e_phoff;
- Elf64_Off e_shoff;
- Elf64_Word e_flags;
- Elf64_Half e_ehsize;
- Elf64_Half e_phentsize;
- Elf64_Half e_phnum;
- Elf64_Half e_shentsize;
- Elf64_Half e_shnum;
- Elf64_Half e_shstrndx;
+typedef struct elf64_hdr
+{
+    unsigned char e_ident[16];
+    Elf64_Half e_type;
+    Elf64_Half e_machine;
+    Elf64_Word e_version;
+    Elf64_Addr e_entry;
+    Elf64_Off e_phoff;
+    Elf64_Off e_shoff;
+    Elf64_Word e_flags;
+    Elf64_Half e_ehsize;
+    Elf64_Half e_phentsize;
+    Elf64_Half e_phnum;
+    Elf64_Half e_shentsize;
+    Elf64_Half e_shnum;
+    Elf64_Half e_shstrndx;
 } Elf64_Ehdr;
 
 #define PF_R 0x4
 #define PF_W 0x2
 #define PF_X 0x1
 
-typedef struct elf32_phdr{
- Elf32_Word p_type;
- Elf32_Off p_offset;
- Elf32_Addr p_vaddr;
- Elf32_Addr p_paddr;
- Elf32_Word p_filesz;
- Elf32_Word p_memsz;
- Elf32_Word p_flags;
- Elf32_Word p_align;
+typedef struct elf32_phdr
+{
+    Elf32_Word p_type;
+    Elf32_Off p_offset;
+    Elf32_Addr p_vaddr;
+    Elf32_Addr p_paddr;
+    Elf32_Word p_filesz;
+    Elf32_Word p_memsz;
+    Elf32_Word p_flags;
+    Elf32_Word p_align;
 } Elf32_Phdr;
 
-typedef struct elf64_phdr {
- Elf64_Word p_type;
- Elf64_Word p_flags;
- Elf64_Off p_offset;
- Elf64_Addr p_vaddr;
- Elf64_Addr p_paddr;
- Elf64_Xword p_filesz;
- Elf64_Xword p_memsz;
- Elf64_Xword p_align;
+typedef struct elf64_phdr
+{
+    Elf64_Word p_type;
+    Elf64_Word p_flags;
+    Elf64_Off p_offset;
+    Elf64_Addr p_vaddr;
+    Elf64_Addr p_paddr;
+    Elf64_Xword p_filesz;
+    Elf64_Xword p_memsz;
+    Elf64_Xword p_align;
 } Elf64_Phdr;
 
 #define SHT_NULL 0
@@ -258,30 +314,32 @@ typedef struct elf64_phdr {
 #define SHN_COMMON 0xfff2
 #define SHN_HIRESERVE 0xffff
 
-typedef struct elf32_shdr{
- Elf32_Word sh_name;
- Elf32_Word sh_type;
- Elf32_Word sh_flags;
- Elf32_Addr sh_addr;
- Elf32_Off sh_offset;
- Elf32_Word sh_size;
- Elf32_Word sh_link;
- Elf32_Word sh_info;
- Elf32_Word sh_addralign;
- Elf32_Word sh_entsize;
+typedef struct elf32_shdr
+{
+    Elf32_Word sh_name;
+    Elf32_Word sh_type;
+    Elf32_Word sh_flags;
+    Elf32_Addr sh_addr;
+    Elf32_Off sh_offset;
+    Elf32_Word sh_size;
+    Elf32_Word sh_link;
+    Elf32_Word sh_info;
+    Elf32_Word sh_addralign;
+    Elf32_Word sh_entsize;
 } Elf32_Shdr;
 
-typedef struct elf64_shdr {
- Elf64_Word sh_name;
- Elf64_Word sh_type;
- Elf64_Xword sh_flags;
- Elf64_Addr sh_addr;
- Elf64_Off sh_offset;
- Elf64_Xword sh_size;
- Elf64_Word sh_link;
- Elf64_Word sh_info;
- Elf64_Xword sh_addralign;
- Elf64_Xword sh_entsize;
+typedef struct elf64_shdr
+{
+    Elf64_Word sh_name;
+    Elf64_Word sh_type;
+    Elf64_Xword sh_flags;
+    Elf64_Addr sh_addr;
+    Elf64_Off sh_offset;
+    Elf64_Xword sh_size;
+    Elf64_Word sh_link;
+    Elf64_Word sh_info;
+    Elf64_Xword sh_addralign;
+    Elf64_Xword sh_entsize;
 } Elf64_Shdr;
 
 #define EI_MAG0 0
@@ -328,16 +386,18 @@ typedef struct elf64_shdr {
 #define NT_AUXV 6
 #define NT_PRXFPREG 0x46e62b7f
 
-typedef struct elf32_note {
- Elf32_Word n_namesz;
- Elf32_Word n_descsz;
- Elf32_Word n_type;
+typedef struct elf32_note
+{
+    Elf32_Word n_namesz;
+    Elf32_Word n_descsz;
+    Elf32_Word n_type;
 } Elf32_Nhdr;
 
-typedef struct elf64_note {
- Elf64_Word n_namesz;
- Elf64_Word n_descsz;
- Elf64_Word n_type;
+typedef struct elf64_note
+{
+    Elf64_Word n_namesz;
+    Elf64_Word n_descsz;
+    Elf64_Word n_type;
 } Elf64_Nhdr;
 
 #if ELF_CLASS == ELFCLASS32

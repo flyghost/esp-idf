@@ -332,6 +332,9 @@ uint32_t esp_core_dump_get_stack(core_dump_task_header_t *task_snapshot,
 // The function creates small fake stack for task as deep as exception frame size
 // It is required for gdb to take task into account but avoid back trace of stack.
 // The espcoredump.py script is able to recognize that task is broken
+// 该函数为任务创建与异常帧大小一样深的伪造堆栈
+// gdb必须考虑任务，但要避免回溯堆栈。
+// espcoredump.py脚本能够识别任务已损坏
 static void *esp_core_dump_get_fake_stack(uint32_t *stk_len)
 {
     *stk_len = sizeof(s_fake_stack_frame);
@@ -490,6 +493,7 @@ bool esp_core_dump_check_task(panic_info_t *info,
         s_extra_info.crashed_task_tcb = (uint32_t)task->tcb_addr;
     }
 
+    // 检查堆栈起始和结束地址是否正常
     stack_is_sane = esp_core_dump_check_stack(task->stack_start, task->stack_end);
     if (!stack_is_sane) {
         // Skip saving of invalid task if stack corrupted
@@ -556,6 +560,7 @@ bool esp_core_dump_check_task(panic_info_t *info,
     return true;
 }
 
+// 检查堆栈地址是否正常
 bool esp_core_dump_check_stack(uint32_t stack_start, uint32_t stack_end)
 {
     uint32_t len = stack_end - stack_start;
