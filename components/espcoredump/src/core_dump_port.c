@@ -369,6 +369,7 @@ static core_dump_reg_pair_t *esp_core_dump_get_eps_regs(core_dump_reg_pair_t* sr
 }
 
 // Returns list of registers (in GDB format) from xtensa stack frame
+// 从xtensa堆栈帧返回寄存器列表（GDB格式）
 static esp_err_t esp_core_dump_get_regs_from_stack(void* stack_addr,
                                                size_t size,
                                                xtensa_gregset_t* regs)
@@ -440,11 +441,15 @@ uint32_t esp_core_dump_get_task_regs_dump(core_dump_task_header_t *task, void **
     uint32_t stack_vaddr, stack_paddr, stack_len;
     static xtensa_elf_reg_dump_t s_reg_dump = { 0 };
 
+    // 获取stack_vaddr，堆栈虚拟地址
+    // stack_len 堆栈长度
+    // stack_paddr，实际虚拟地址（如果是坏的，则是fake地址）
     stack_paddr = esp_core_dump_get_stack(task, &stack_vaddr, &stack_len);
 
     ESP_COREDUMP_LOG_PROCESS("Add regs for task 0x%x", task->tcb_addr);
 
     // initialize program status for the task
+    // 初始化任务的程序状态
     s_reg_dump.pr_status.pr_cursig = 0;
     s_reg_dump.pr_status.pr_pid = (uint32_t)task->tcb_addr;
 

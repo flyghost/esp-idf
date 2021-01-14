@@ -351,6 +351,8 @@ static int elf_process_task_regdump(core_dump_elf_t *self, panic_info_t *info, c
                 ESP_COREDUMP_LOG_PROCESS("The current crashed task has broken (TCB:%x)!",
                                             task->tcb_addr);
             }
+
+            // 损坏的数量加一
             self->bad_tasks_num++;
         }
     }
