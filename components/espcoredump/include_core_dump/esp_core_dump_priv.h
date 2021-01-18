@@ -87,9 +87,9 @@ typedef uint32_t core_dump_crc_t;
 typedef struct _core_dump_write_data_t
 {
     // TODO: move flash related data to flash-specific code
-    uint32_t        off; // current offset in partition 分区中的当前偏移量，也就是已经写入的长度
-    uint8_t         cached_data[COREDUMP_CACHE_SIZE];
-    uint8_t         cached_bytes;
+    uint32_t        off; // current offset in partition 分区中的当前偏移量，也就是已经写入到flash或者串口的长度
+    uint8_t         cached_data[COREDUMP_CACHE_SIZE];   // 缓冲区
+    uint8_t         cached_bytes;                       // 缓冲区已使用长度
 #if CONFIG_ESP_COREDUMP_CHECKSUM_SHA256
     // TODO: move this to portable part of the code
     mbedtls_sha256_context  ctx;

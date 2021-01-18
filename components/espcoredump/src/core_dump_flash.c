@@ -25,21 +25,17 @@ const static DRAM_ATTR char TAG[] __attribute__((unused)) = "esp_core_dump_flash
 
 typedef struct _core_dump_partition_t
 {
-    /* Core dump partition start. */
-    uint32_t start;
-    /* Core dump partition size. */
-    uint32_t size;
+    uint32_t start; // core dump 分区起始地址
+    uint32_t size;  // core dump 分区大小
 } core_dump_partition_t;
 
 typedef struct _core_dump_flash_config_t
 {
-    /* Core dump partition config. */
-    core_dump_partition_t partition;
-    /* CRC of core dump partition config. */
-    core_dump_crc_t partition_config_crc;
+    core_dump_partition_t partition;        // core dump 的分区配置
+    core_dump_crc_t partition_config_crc;   // core dump 配置的CRC
 } core_dump_flash_config_t;
 
-/* Core dump flash data. */
+// core dump flash 数据
 static core_dump_flash_config_t s_core_flash_config;
 
 #ifdef CONFIG_SPI_FLASH_USE_LEGACY_IMPL
@@ -67,17 +63,21 @@ static esp_err_t esp_core_dump_flash_custom_write(uint32_t address, const void *
 
 esp_err_t esp_core_dump_image_get(size_t* out_addr, size_t *out_size);
 
+// 获取flash中coredump分区的CRC校验值
 static inline core_dump_crc_t esp_core_dump_calc_flash_config_crc(void)
 {
     return esp_rom_crc32_le(0, (uint8_t const *)&s_core_flash_config.partition, sizeof(s_core_flash_config.partition));
 }
 
+// flash 中 core dump 分区的初始化
 void esp_core_dump_flash_init(void)
 {
     const esp_partition_t *core_part = NULL;
 
     /* Look for the core dump partition on the flash. */
     ESP_COREDUMP_LOGI("Init core dump to flash");
+
+    // 查找coredump flash 分区
     core_part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, NULL);
     if (!core_part) {
         ESP_COREDUMP_LOGE("No core dump partition found!");
@@ -89,31 +89,40 @@ void esp_core_dump_flash_init(void)
     s_core_flash_config.partition_config_crc = esp_core_dump_calc_flash_config_crc();
 }
 
+// coredump 写入flash
+// 每次调用传参很小的话，首先放入缓冲区
+// 数据较大的话就以缓冲区的倍数直接写入flash
+// 剩余的数据放入缓冲区
 static esp_err_t esp_core_dump_flash_write_data(void *priv, uint8_t *data, uint32_t data_size)
 {
     core_dump_write_data_t *wr_data = (core_dump_write_data_t *)priv;
     esp_err_t err = ESP_OK;
-    uint32_t written = 0;
-    uint32_t wr_sz = 0;
+    uint32_t written = 0;   // 已经写入的数据长度
+    uint32_t wr_sz = 0;     // 实际要写入数据的长度
 
-    /* Make sure that the partition is large enough to hold the data. */
+    // 确保写入的数据要比分区表的长度小
     assert((wr_data->off + data_size) < s_core_flash_config.partition.size);
 
+    // 缓冲区中已经有数据
     if (wr_data->cached_bytes) {
         /* Some bytes are in the cache, let's continue filling the cache
          * with the data received as parameter. Let's calculate the maximum
          * amount of bytes we can still fill the cache with. */
-        if ((COREDUMP_CACHE_SIZE - wr_data->cached_bytes) > data_size)
+        // 缓存中有一些字节，让我们继续将接收到的数据作为参数填充到缓存中。 
+        // 让我们计算仍然可以用来填充缓存的最大字节数。
+
+        if ((COREDUMP_CACHE_SIZE - wr_data->cached_bytes) > data_size)  // 剩余缓存足够存放即将写入的数据
             wr_sz = data_size;
-        else
+        else                                                            // 剩余缓存不够存放即将写入的数据
             wr_sz = COREDUMP_CACHE_SIZE - wr_data->cached_bytes;
 
-        /* Append wr_sz bytes from data parameter to the cache. */
+        // 把要写入的数据拷贝到缓冲数组中
         memcpy(&wr_data->cached_data[wr_data->cached_bytes], data, wr_sz);
         wr_data->cached_bytes += wr_sz;
 
+        // 缓冲区满了，将缓冲区数据写入flash
         if (wr_data->cached_bytes == COREDUMP_CACHE_SIZE) {
-            /* The cache is full, we can flush it to the flash. */
+            // 缓冲区满了，将其刷新到flash
             err = esp_core_dump_flash_custom_write(s_core_flash_config.partition.start + wr_data->off,
                                                    wr_data->cached_data,
                                                    COREDUMP_CACHE_SIZE);
@@ -125,23 +134,21 @@ static esp_err_t esp_core_dump_flash_write_data(void *priv, uint8_t *data, uint3
              * can now be increased. */
             wr_data->off += COREDUMP_CACHE_SIZE;
 
-            /* Update checksum with the newly written data on the flash. */
+            // 用flash上新写入的数据更新校验和
             esp_core_dump_checksum_update(wr_data, &wr_data->cached_data, COREDUMP_CACHE_SIZE);
 
-            /* Reset cache from the next use. */
+            // 重置缓冲区
             wr_data->cached_bytes = 0;
             memset(wr_data->cached_data, 0, COREDUMP_CACHE_SIZE);
         }
 
-        written += wr_sz;
-        data_size -= wr_sz;
+        written += wr_sz;       // 已经写入的长度
+        data_size -= wr_sz;     // 剩余长度
     }
 
-    /* Figure out how many bytes we can write onto the flash directly, without
-     * using the cache. In our case the cache size is a multiple of the flash's
-     * minimum writing block size, so we will use it for our calculation.
-     * For example, if COREDUMP_CACHE_SIZE equals 32, here are interesting
-     * values:
+    /* 
+     * 不使用缓冲区，计算直接写入flash的字节数，该长度是写入块的最小值的整数倍
+     * 例如：如果COREDUMP_CACHE_SIZE等于32，值为下表
      * +---------+-----------------------+
      * |         |       data_size       |
      * +---------+---+----+----+----+----+
@@ -151,11 +158,11 @@ static esp_err_t esp_core_dump_flash_write_data(void *priv, uint8_t *data, uint3
      * +---------+---+----+----+----+----+
      * | wr_sz   | 0 | 0  | 32 | 32 | 64 |
      * +---------+---+----+----+----+----+
+     * 计算即将写入的长度换算为COREDUMP_CACHE_SIZE整数倍
      */
     wr_sz = (data_size / COREDUMP_CACHE_SIZE) * COREDUMP_CACHE_SIZE;
     if (wr_sz) {
-        /* Write the contiguous amount of bytes to the flash,
-         * without using the cache */
+        // 将相邻字节数的数据写入flash，不使用缓冲区
         err = esp_core_dump_flash_custom_write(s_core_flash_config.partition.start + wr_data->off, data + written, wr_sz);
 
         if (err != ESP_OK) {
@@ -163,17 +170,15 @@ static esp_err_t esp_core_dump_flash_write_data(void *priv, uint8_t *data, uint3
             return err;
         }
 
-        /* Update the checksum with the newly written bytes */
+        // 用新写入的数据更新校验和
         esp_core_dump_checksum_update(wr_data, data + written, wr_sz);
         wr_data->off += wr_sz;
         written += wr_sz;
         data_size -= wr_sz;
     }
 
+    // 写入flash后剩余的数据，将其放入缓冲区，以后写入flash
     if (data_size > 0) {
-        /* There still some bytes from the data parameter that need to be sent,
-         * append it to cache in order to write them later. (i.e. when there
-         * will be enough bytes to fill the cache) */
         memcpy(&wr_data->cached_data, data + written, data_size);
         wr_data->cached_bytes = data_size;
     }
@@ -181,6 +186,7 @@ static esp_err_t esp_core_dump_flash_write_data(void *priv, uint8_t *data, uint3
     return ESP_OK;
 }
 
+// coredump 写入flsh的准备工作
 static esp_err_t esp_core_dump_flash_write_prepare(void *priv, uint32_t *data_len)
 {
     core_dump_write_data_t *wr_data = (core_dump_write_data_t *)priv;
@@ -188,43 +194,38 @@ static esp_err_t esp_core_dump_flash_write_prepare(void *priv, uint32_t *data_le
     uint32_t sec_num = 0;
     uint32_t cs_len = 0;
 
-    /* Get the length, in bytes, of the checksum. */
+    // 获取最终的校验和长度
     cs_len = esp_core_dump_checksum_finish(wr_data, NULL);
 
-    /* At the end of the core dump file, a padding may be added, according to the
-     * cache size. We must take that padding into account. */
-    uint32_t padding = 0;
-    const uint32_t modulo = *data_len % COREDUMP_CACHE_SIZE;
+    // 根据缓冲区大小，在core dump文件末尾可能需要一定的填充
+    uint32_t padding = 0;                                       // 填充长度
+    const uint32_t modulo = *data_len % COREDUMP_CACHE_SIZE;    // 取余
     if (modulo != 0) {
-        /* The data length is not a multiple of the cache size,
-         * so there will be a padding. */
+        // 数据长度不是COREDUMP_CACHE_SIZE整数倍，需要填充
         padding = COREDUMP_CACHE_SIZE - modulo;
     }
 
-    /* Now we can check whether we have enough space in our core dump parition
-     * or not. */
+    // 检查couredump分区中是否有足够的空间
     if ((*data_len + padding + cs_len) > s_core_flash_config.partition.size) {
         ESP_COREDUMP_LOGE("Not enough space to save core dump!");
         return ESP_ERR_NO_MEM;
     }
 
-    /* We have enough space in the partition, add the padding and the checksum
-     * in the core dump file calculation. */
+    // coredump分区有足够的空间，加入padding和校验和长度
     *data_len += padding + cs_len;
 
     memset(wr_data, 0, sizeof(core_dump_write_data_t));
 
-    /* In order to erase the right amount of data in the flash, we have to
-     * calculate how many SPI flash sectors will be needed by the core dump
-     * file. */
+    // 为了擦除flash中准确数量的数据，需要计算coredump文件需要多少SPI FLASH块
     sec_num = *data_len / SPI_FLASH_SEC_SIZE;
     if (*data_len % SPI_FLASH_SEC_SIZE) {
         sec_num++;
     }
 
-    /* Erase the amount of sectors needed. */
     ESP_COREDUMP_LOGI("Erase flash %d bytes @ 0x%x", sec_num * SPI_FLASH_SEC_SIZE, s_core_flash_config.partition.start + 0);
     assert(sec_num * SPI_FLASH_SEC_SIZE <= s_core_flash_config.partition.size);
+
+    // 擦除需要的几个SPI FLASH块
     err = ESP_COREDUMP_FLASH_ERASE(s_core_flash_config.partition.start + 0, sec_num * SPI_FLASH_SEC_SIZE);
     if (err != ESP_OK) {
         ESP_COREDUMP_LOGE("Failed to erase flash (%d)!", err);
@@ -233,13 +234,17 @@ static esp_err_t esp_core_dump_flash_write_prepare(void *priv, uint32_t *data_le
     return err;
 }
 
+// coredump开始写入flash
 static esp_err_t esp_core_dump_flash_write_start(void *priv)
 {
     core_dump_write_data_t *wr_data = (core_dump_write_data_t *)priv;
+
+    // 初始化校验和
     esp_core_dump_checksum_init(wr_data);
     return ESP_OK;
 }
 
+// coredump写入flash结束
 static esp_err_t esp_core_dump_flash_write_end(void *priv)
 {
     esp_err_t err = ESP_OK;
