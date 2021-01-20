@@ -25,27 +25,46 @@ void esp_gdbstub_target_init(void)
 
 int esp_gdbstub_getchar(void)
 {
+    // 死循环等待数据到来
     while (REG_GET_FIELD(UART_STATUS_REG(UART_NUM), UART_RXFIFO_CNT) == 0) {
         ;
     }
+
+    // 读取串口数据
     return REG_READ(UART_FIFO_REG(UART_NUM));
 }
 
 void esp_gdbstub_putchar(int c)
 {
+    // 等待缓冲区有空余
     while (REG_GET_FIELD(UART_STATUS_REG(UART_NUM), UART_TXFIFO_CNT) >= 126) {
         ;
     }
+
+    // 写入数据
     REG_WRITE(UART_FIFO_REG(UART_NUM), c);
 }
 
+// 读取一个地址里的值
 int esp_gdbstub_readmem(intptr_t addr)
 {
+    // 判断传参的地址是否在无效内存区域
     if (addr < 0x20000000 || addr >= 0x80000000) {
         /* see esp_cpu_configure_region_protection */
         return -1;
     }
+
+    // 地址4字节对齐后再取值
     uint32_t val_aligned = *(uint32_t *)(addr & (~3));
+
+    // 小端：低位在低地址，高位在高地址，对齐后读的值并不是真实的值，需要将多余的字节去掉
+    // 例如：0x20000001读取
+    // 实际读取的是0x20000000的值为0x12345678
+    // 0x20000000:0x78
+    // 0x20000001:0x56
+    // 0x20000002:0x34
+    // 0x20000003:0x12
+    // 此时右移8位，0x123456就是真实读取0x20000001的值
     uint32_t shift = (addr & 3) * 8;
     return (val_aligned >> shift) & 0xff;
 }

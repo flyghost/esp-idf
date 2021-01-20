@@ -27,11 +27,12 @@
 #endif // CONFIG_ESP_GDBSTUB_SUPPORT_TASKS
 
 /* Internal error codes used by the routines that parse the incoming gdb packet */
+// 解析传入gdb数据包的例程使用的内部错误代码
 #define GDBSTUB_ST_ENDPACKET -1
 #define GDBSTUB_ST_ERR -2
 #define GDBSTUB_ST_OK -3
 
-/* Special task index values */
+// 特殊任务索引值
 #define GDBSTUB_CUR_TASK_INDEX_UNKNOWN -1
 
 /* Cab be set to a lower value in gdbstub_target_config.h */
