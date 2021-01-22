@@ -95,13 +95,14 @@ static void print_state(const void *f)
 #endif
 }
 
+// 将架构异常框架转换为抽象的紧急信息
 static void frame_to_panic_info(void *frame, panic_info_t *info, bool pseudo_excause)
 {
-    info->core = cpu_hal_get_core_id();
-    info->exception = PANIC_EXCEPTION_FAULT;
-    info->details = NULL;
-    info->reason = "Unknown";
-    info->pseudo_excause = pseudo_excause;
+    info->core = cpu_hal_get_core_id();         // 引发异常的核心
+    info->exception = PANIC_EXCEPTION_FAULT;    // 引发异常的原因
+    info->details = NULL;                       // 有关异常的更多信息
+    info->reason = "Unknown";                   // 异常字符串
+    info->pseudo_excause = pseudo_excause;      // 异常原因是否有特殊含义
 
     if (pseudo_excause) {
         panic_soc_fill_info(frame, info);
@@ -115,27 +116,25 @@ static void frame_to_panic_info(void *frame, panic_info_t *info, bool pseudo_exc
 
 static void panic_handler(void *frame, bool pseudo_excause)
 {
-    /*
-     * Setup environment and perform necessary architecture/chip specific
-     * steps here prior to the system panic handler.
-     * */
+    // 在系统紧急处理程序之前，设置环境并执行必要的体系结构/芯片特定步骤。
     int core_id = cpu_hal_get_core_id();
 
-    // If multiple cores arrive at panic handler, save frames for all of them
+    // 如果有多个内核到达紧急处理程序，请为所有内核保存帧
     g_exc_frames[core_id] = frame;
 
 #if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
-    // These are cases where both CPUs both go into panic handler. The following code ensures
-    // only one core proceeds to the system panic handler.
+    // 有一定几率两个CPU都进入panic。
+    // 下面确保只要一个内核进入系统紧急处理程序
     if (pseudo_excause) {
 #define BUSY_WAIT_IF_TRUE(b)                { if (b) while(1); }
-        // For WDT expiry, pause the non-offending core - offending core handles panic
+        // 看门狗到期,暂停non-offending核心，offending核心来处理panic
         BUSY_WAIT_IF_TRUE(panic_get_cause(frame) == PANIC_RSN_INTWDT_CPU0 && core_id == 1);
         BUSY_WAIT_IF_TRUE(panic_get_cause(frame) == PANIC_RSN_INTWDT_CPU1 && core_id == 0);
 
-        // For cache error, pause the non-offending core - offending core handles panic
+        // 如果发生缓存错误，暂停non-offending核心，offending核心来处理panic
         if (panic_get_cause(frame) == PANIC_RSN_CACHEERR && core_id != esp_cache_err_get_cpuid()) {
             // Only print the backtrace for the offending core in case of the cache error
+            // 在缓存错误的情况下，只打印有问题的的内核回溯
             g_exc_frames[core_id] = NULL;
             while (1) {
                 ;
@@ -178,6 +177,7 @@ static void panic_handler(void *frame, bool pseudo_excause)
     }
 
     // Convert architecture exception frame into abstracted panic info
+    // 将架构异常框架转换为抽象的紧急信息
     panic_info_t info;
     frame_to_panic_info(frame, &info, pseudo_excause);
 

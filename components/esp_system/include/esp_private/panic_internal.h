@@ -40,6 +40,8 @@ typedef void (*panic_info_dump_fn_t)(const void* frame);
 // Can be used to convey to the main logic what exception is being
 // dealt with to perform some actions, without knowing the underlying
 // architecture/chip-specific exception.
+// 非特定于体系结构的异常（通常对所有目标均有效）。 
+// 可用于向主要逻辑传达正在处理的异常以执行某些操作，而无需了解底层体系结构/特定于芯片的异常。
 typedef enum {
     PANIC_EXCEPTION_DEBUG,
     PANIC_EXCEPTION_IWDT,
@@ -49,15 +51,15 @@ typedef enum {
 } panic_exception_t;
 
 typedef struct {
-    int core;                               // core which triggered panic  引发异常的核心
-    panic_exception_t exception;            // non-architecture-specific exception code 非体系结构特定的异常代码
-    const char* reason;                     // exception string   异常字符串
-    const char* description;                // short description of the exception 异常的简短描述
-    panic_info_dump_fn_t details;           // more details on the exception    有关异常的更多信息
-    panic_info_dump_fn_t state;             // processor state, usually the contents of the registers 处理器状态，通常是寄存器的内容
-    const void* addr;                       // instruction address that triggered the exception 触发异常的指令地址
-    const void* frame;                      // reference to the frame   参考框架
-    bool pseudo_excause;                    // flag indicating that exception cause has special meaning 表示异常原因有特殊含义的标志
+    int core;                               // 引发异常的核心
+    panic_exception_t exception;            // 引发异常的原因
+    const char* reason;                     // 异常字符串
+    const char* description;                // 异常的简短描述
+    panic_info_dump_fn_t details;           // 有关异常的更多信息
+    panic_info_dump_fn_t state;             // 处理器状态，通常是寄存器的内容
+    const void* addr;                       // 触发异常的指令地址
+    const void* frame;                      // 参考框架，直接从汇编传过来的
+    bool pseudo_excause;                    // 表示异常原因有特殊含义的标志
 } panic_info_t;
 
 #define PANIC_INFO_DUMP(info, dump_fn)      {if ((info)->dump_fn) (*(info)->dump_fn)((info->frame));}
