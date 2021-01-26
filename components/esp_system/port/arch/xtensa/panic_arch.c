@@ -38,24 +38,43 @@
 #endif
 #endif // CONFIG_IDF_TARGET_ESP32
 
+// 只是打印一些寄存器的值
 void panic_print_registers(const void *f, int core)
 {
     XtExcFrame *frame = (XtExcFrame *) f;
     int *regs = (int *)frame;
 
     const char *sdesc[] = {
-        "PC      ", "PS      ", "A0      ", "A1      ", "A2      ", "A3      ", "A4      ", "A5      ",
-        "A6      ", "A7      ", "A8      ", "A9      ", "A10     ", "A11     ", "A12     ", "A13     ",
-        "A14     ", "A15     ", "SAR     ", "EXCCAUSE", "EXCVADDR", "LBEG    ", "LEND    ", "LCOUNT  "
+        "PC      ", "PS      ", "A0      ", "A1      ", 
+        "A2      ", "A3      ", "A4      ", "A5      ",
+        "A6      ", "A7      ", "A8      ", "A9      ", 
+        "A10     ", "A11     ", "A12     ", "A13     ",
+        "A14     ", "A15     ", "SAR     ", "EXCCAUSE", 
+        "EXCVADDR", "LBEG    ", "LEND    ", "LCOUNT  "
     };
 
     /* only dump registers for 'real' crashes, if crashing via abort()
        the register window is no longer useful.
     */
+   // 仅转储真正的崩溃寄存器，如果通过abort（）崩溃，则寄存器窗口不再有用。
     panic_print_str("Core ");
     panic_print_dec(core);
     panic_print_str(" register dump:");
 
+    // 打印结果：
+    // PC      : 0x+frame[1]  
+    // PS      : 0x+frame[2]  
+    // A0      : 0x+frame[3]  
+    // A1      : 0x+frame[4]  
+    // A2      : 0x+frame[5]  
+    //        .......
+    // A15     : 0x+frame[18]
+    // SAR     : 0x+frame[19]  
+    // EXCCAUSE: 0x+frame[20]
+    // EXCVADDR: 0x+frame[21]
+    // LBEG    : 0x+frame[22]
+    // LEND    : 0x+frame[23]
+    // LCOUNT  : 0x+frame[24]
     for (int x = 0; x < 24; x += 4) {
         panic_print_str("\r\n");
         for (int y = 0; y < 4; y++) {
@@ -69,6 +88,9 @@ void panic_print_registers(const void *f, int core)
     }
 
     // If the core which triggers the interrupt watchpoint was in ISR context, dump the epc registers.
+    // 如果触发中断观察点的核心在终端服务程序上下文中
+    // 同时，是由CPU0的看门狗或者cpu1的看门狗引起的
+    // 打印EPC1、EPC2、EPC3、EPC4的值
     if (xPortInterruptedFromISRContext()
 #if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
             && ((core == 0 && frame->exccause == PANIC_RSN_INTWDT_CPU0) ||
@@ -125,7 +147,7 @@ static void print_illegal_instruction_details(const void *f)
     panic_print_hex(*(pepc + 2));
 }
 
-
+// 打印调试的异常信息
 static void print_debug_exception_details(const void *f)
 {
     int debug_rsn;
@@ -389,13 +411,19 @@ void panic_soc_fill_info(void *f, panic_info_t *info)
     // [refactor-todo] this should be in the common port panic_handler.c, once
     // these special exceptions are supported in there.
     XtExcFrame *frame = (XtExcFrame*) f;
+
+    // CPU0引起的MWDT,info中的异常原因为IWDT
     if (frame->exccause == PANIC_RSN_INTWDT_CPU0) {
         info->core = 0;
         info->exception = PANIC_EXCEPTION_IWDT;
-    } else if (frame->exccause == PANIC_RSN_INTWDT_CPU1) {
+    } 
+    // CPU1引起的MWDT,info中的异常原因为IWDT
+    else if (frame->exccause == PANIC_RSN_INTWDT_CPU1) {
         info->core = 1;
         info->exception = PANIC_EXCEPTION_IWDT;
-    } else if (frame->exccause == PANIC_RSN_CACHEERR) {
+    } 
+    // cache error引起
+    else if (frame->exccause == PANIC_RSN_CACHEERR) {
         info->core =  esp_cache_err_get_cpuid();
     } else {}
 
@@ -418,13 +446,15 @@ void panic_soc_fill_info(void *f, panic_info_t *info)
     info->reason = pseudo_reason[0];
     info->description = NULL;
 
+    // 按照frame帧对应的异常原因，赋值info中异常原因字符串
     if (frame->exccause <= PANIC_RSN_MAX) {
         info->reason = pseudo_reason[frame->exccause];
     }
 
+    // 如果是debug异常，重新赋值
     if (frame->exccause == PANIC_RSN_DEBUGEXCEPTION) {
-        info->details = print_debug_exception_details;
-        info->exception = PANIC_EXCEPTION_DEBUG;
+        info->details = print_debug_exception_details;  // 打印调试的异常信息
+        info->exception = PANIC_EXCEPTION_DEBUG;        // 异常类型
     }
 
 #if CONFIG_IDF_TARGET_ESP32S2

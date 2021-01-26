@@ -62,9 +62,13 @@ void *g_exc_frames[SOC_CPU_CORES_NUM] = {NULL};
 /*
   Note: The linker script will put everything in this file in IRAM/DRAM, so it also works with flash cache disabled.
 */
+// 发生未处理的异常，或者程序的任务切换、终端代码遇到不可切换的任务时，将调用此函数
+// 默认任务堆栈溢出处理程序和中止处理程序也位于此处
 static void print_state_for_core(const void *f, int core)
 {
+    // 不是abort异常
     if (!g_panic_abort) {
+        // 在串口打印一些寄存器的值
         panic_print_registers(f, core);
         panic_print_str("\r\n");
     }
@@ -73,18 +77,20 @@ static void print_state_for_core(const void *f, int core)
 
 static void print_state(const void *f)
 {
+    // 获取core id
 #if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
     int err_core = f == g_exc_frames[0] ? 0 : 1;
 #else
     int err_core = 0;
 #endif
 
+    // 
     print_state_for_core(f, err_core);
 
     panic_print_str("\r\n");
 
 #if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
-    // If there are other frame info, print them as well
+    // 如果有其他的frame信息，也打印出来
     for (int i = 0; i < SOC_CPU_CORES_NUM; i++) {
         // `f` is the frame for the offending core, see note above.
         if (err_core != i && g_exc_frames[i] != NULL) {
@@ -116,15 +122,14 @@ static void frame_to_panic_info(void *frame, panic_info_t *info, bool pseudo_exc
 
 static void panic_handler(void *frame, bool pseudo_excause)
 {
-    // 在系统紧急处理程序之前，设置环境并执行必要的体系结构/芯片特定步骤。
+    // 获取正在执行代码的core id
     int core_id = cpu_hal_get_core_id();
 
-    // 如果有多个内核到达紧急处理程序，请为所有内核保存帧
+    // 保存原始帧
     g_exc_frames[core_id] = frame;
 
+    // 如果ESP开发板是双核CPU的话，有一定几率两个都进入panic，下面确保只有一个内核进入系统紧急处理程序
 #if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
-    // 有一定几率两个CPU都进入panic。
-    // 下面确保只要一个内核进入系统紧急处理程序
     if (pseudo_excause) {
 #define BUSY_WAIT_IF_TRUE(b)                { if (b) while(1); }
         // 看门狗到期,暂停non-offending核心，offending核心来处理panic
@@ -132,6 +137,7 @@ static void panic_handler(void *frame, bool pseudo_excause)
         BUSY_WAIT_IF_TRUE(panic_get_cause(frame) == PANIC_RSN_INTWDT_CPU1 && core_id == 0);
 
         // 如果发生缓存错误，暂停non-offending核心，offending核心来处理panic
+        // 如果是cache error,但是当前的 core id 没有发生cache error，就不打印
         if (panic_get_cause(frame) == PANIC_RSN_CACHEERR && core_id != esp_cache_err_get_cpuid()) {
             // Only print the backtrace for the offending core in case of the cache error
             // 在缓存错误的情况下，只打印有问题的的内核回溯
@@ -144,20 +150,22 @@ static void panic_handler(void *frame, bool pseudo_excause)
 
     esp_rom_delay_us(1);
     SOC_HAL_STALL_OTHER_CORES();
-#endif
+#endif // CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE
 
 #if CONFIG_IDF_TARGET_ESP32
+    // 设置cpu为idle
     esp_dport_access_int_abort();
 #endif
 
 #if !CONFIG_ESP_PANIC_HANDLER_IRAM
-    // Re-enable CPU cache for current CPU if it was disabled
+    // 重新使能IRAM
     if (!spi_flash_cache_enabled()) {
         spi_flash_enable_cache(core_id);
         panic_print_str("Re-enable cpu cache.\r\n");
     }
 #endif
 
+    // cpu处于ocd调试模式
     if (esp_cpu_in_ocd_debug_mode()) {
 #if __XTENSA__
         if (!(esp_ptr_executable(cpu_ll_pc_to_ptr(panic_get_address(frame))) && (panic_get_address(frame) & 0xC0000000U))) {
@@ -168,6 +176,7 @@ static void panic_handler(void *frame, bool pseudo_excause)
             panic_set_address(frame, (uint32_t)&_invalid_pc_placeholder);
         }
 #endif
+        // panic异常的原因是看门狗中断，则喂狗
         if (panic_get_cause(frame) == PANIC_RSN_INTWDT_CPU0 ||
             panic_get_cause(frame) == PANIC_RSN_INTWDT_CPU1) {
             wdt_hal_write_protect_disable(&wdt0_context);
@@ -176,8 +185,7 @@ static void panic_handler(void *frame, bool pseudo_excause)
         }
     }
 
-    // Convert architecture exception frame into abstracted panic info
-    // 将架构异常框架转换为抽象的紧急信息
+    // 将frame转换为info结构
     panic_info_t info;
     frame_to_panic_info(frame, &info, pseudo_excause);
 
@@ -191,9 +199,11 @@ void panicHandler(void *frame)
     // kernel exception vector gets used; as well as handling interrupt-based
     // faults cache error, wdt expiry. EXCAUSE register gets written with
     // one of PANIC_RSN_* values.
+    // 双重异常向量、内核异常向量、基于中断的故障缓存错误、看门狗到期
     panic_handler(frame, true);
 }
 
+// 特殊异常处理函数
 void xt_unhandled_exception(void *frame)
 {
     panic_handler(frame, false);

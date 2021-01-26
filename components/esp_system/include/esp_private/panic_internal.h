@@ -51,12 +51,12 @@ typedef enum {
 } panic_exception_t;
 
 typedef struct {
-    int core;                               // 引发异常的核心
-    panic_exception_t exception;            // 引发异常的原因
-    const char* reason;                     // 异常字符串
+    int core;                               // 引发异常的CPU
+    panic_exception_t exception;            // 异常类型
+    const char* reason;                     // 异常原因，字符串表示
     const char* description;                // 异常的简短描述
-    panic_info_dump_fn_t details;           // 有关异常的更多信息
-    panic_info_dump_fn_t state;             // 处理器状态，通常是寄存器的内容
+    panic_info_dump_fn_t details;           // 有关异常的更多信息，打印调试的异常信息
+    panic_info_dump_fn_t state;             // 处理器状态，通常是寄存器的内容，这个就是打印的内容
     const void* addr;                       // 触发异常的指令地址
     const void* frame;                      // 参考框架，直接从汇编传过来的
     bool pseudo_excause;                    // 表示异常原因有特殊含义的标志

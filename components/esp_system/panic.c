@@ -152,6 +152,7 @@ void panic_print_dec(int d)
   all watchdogs except the timer group 0 watchdog, and it reconfigures that to reset the chip after
   one second.
 */
+// 关闭IWDT，启动TWDT，配置1秒后复位cpu
 static void reconfigure_all_wdts(void)
 {
     //Todo: Refactor to use Interrupt or Task Watchdog API, and a system level WDT context
@@ -196,8 +197,8 @@ static void print_abort_details(const void *f)
 // already been done, and panic_info_t has been filled.
 void esp_panic_handler(panic_info_t *info)
 {
-    // If the exception was due to an abort, override some of the panic info
-    // 如果异常是由于中止引起的，请重写一些紧急信息
+
+    // 如果是abort异常，则重写panic Info
     if (g_panic_abort) {
         info->description = NULL;
         info->details = s_panic_abort_details ? print_abort_details : NULL;
@@ -218,16 +219,18 @@ void esp_panic_handler(panic_info_t *info)
      *
      *
      * ----------------------------------------------------------------------------------------
-     * core - core where exception was triggered
-     * exception - what kind of exception occured
-     * description - a short description regarding the exception that occured
-     * details - more details about the exception
-     * state - processor state like register contents, and backtrace
-     * elf_info - details about the image currently running
+     * core - core where exception was triggered                              异常发生在哪个芯片
+     * exception - what kind of exception occured                             异常的类型
+     * description - a short description regarding the exception that occured 异常的描述
+     * details - more details about the exception                             关于异常的细节信息
+     * state - processor state like register contents, and backtrace          关于异常的状态：处理器状态（寄存器内容和回溯）
+     * elf_info - details about the image currently running                   关于当前运行镜像的细节
      *
      * NULL fields in panic_info_t are not printed.
      *
      * */
+
+    // 如果空的话是不打印的，也就是abort异常
     if (info->reason) {
         panic_print_str("Guru Meditation Error: Core ");
         panic_print_dec(info->core);
@@ -236,6 +239,7 @@ void esp_panic_handler(panic_info_t *info)
         panic_print_str("). ");
     }
 
+    // 如果空的话是不打印的，也就是abort异常
     if (info->description) {
         panic_print_str(info->description);
     }
@@ -272,23 +276,22 @@ void esp_panic_handler(panic_info_t *info)
     // start panic WDT to restart system if we hang in this handler
     // 如果挂起此处理程序，启动panic看门狗重启系统
     if (!wdt_hal_is_enabled(&rtc_wdt_ctx)) {
-        // 初始化看门狗
+        // 重新初始化看门狗
         wdt_hal_init(&rtc_wdt_ctx, WDT_RWDT, 0, false);
         uint32_t stage_timeout_ticks = (uint32_t)(7000ULL * rtc_clk_slow_freq_get_hz() / 1000ULL);
         wdt_hal_write_protect_disable(&rtc_wdt_ctx);
         wdt_hal_config_stage(&rtc_wdt_ctx, WDT_STAGE0, stage_timeout_ticks, WDT_STAGE_ACTION_RESET_SYSTEM);
-        // 64KB of core dump data (stacks of about 30 tasks) will produce ~85KB base64 data.
-        // @ 115200 UART speed it will take more than 6 sec to print them out.
+        // 64KB的核心转储数据（约30个任务的堆栈）将产生约85KB的base64数据。
+        // 115200 串口波特率，将其打印需要6秒钟以上。
         wdt_hal_enable(&rtc_wdt_ctx);
         wdt_hal_write_protect_enable(&rtc_wdt_ctx);
-
     }
 
-    //Feed the watchdogs, so they will give us time to print out debug info
-    // 喂看门狗，这样他们会给我们时间打印调试信息
+    // 喂狗，这样他们会给我们时间打印调试信息
+    // 关闭IWDT，启动TWDT，配置1秒后复位cpu
     reconfigure_all_wdts();
 
-    PANIC_INFO_DUMP(info, state);
+    PANIC_INFO_DUMP(info, state);   // 打印寄存器state
     panic_print_str("\r\n");
 
     panic_print_str("\r\nELF file SHA256: ");
@@ -310,27 +313,31 @@ void esp_panic_handler(panic_info_t *info)
     reconfigure_all_wdts();
 #endif
 
+    // 如果使用gdb调试的话，将进入该循环
 #if CONFIG_ESP_SYSTEM_PANIC_GDBSTUB
-    disable_all_wdts();
-    wdt_hal_write_protect_disable(&rtc_wdt_ctx);
-    wdt_hal_disable(&rtc_wdt_ctx);
-    wdt_hal_write_protect_enable(&rtc_wdt_ctx);
+    disable_all_wdts();                             // 关闭所有看门狗：IWDT  TWDT
+    wdt_hal_write_protect_disable(&rtc_wdt_ctx);    // 关闭RTC WDT写保护
+    wdt_hal_disable(&rtc_wdt_ctx);                  // 关闭RTC WDT
+    wdt_hal_write_protect_enable(&rtc_wdt_ctx);     // 开启写保护
     panic_print_str("Entering gdb stub now.\r\n");
-    esp_gdbstub_panic_handler((esp_gdbstub_frame_t*)info->frame);
+    esp_gdbstub_panic_handler((esp_gdbstub_frame_t*)info->frame);       // 进入GDB死循环
 #else
 
 #if CONFIG_ESP_COREDUMP_ENABLE
     static bool s_dumping_core;
     if (s_dumping_core) {
         panic_print_str("Re-entered core dump! Exception happened during core dump!\r\n");
-    } else {
+    } 
+    // 保证只进入一次
+    else 
+    {
         disable_all_wdts();     // 关闭看门狗
         s_dumping_core = true;
 #if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH
         esp_core_dump_to_flash(info);       // 保存到flash
 #endif
 #if CONFIG_ESP_COREDUMP_ENABLE_TO_UART && !CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT
-        esp_core_dump_to_uart(info);    // 打印到串口
+        esp_core_dump_to_uart(info);        // 打印到串口
 #endif
         s_dumping_core = false;
         reconfigure_all_wdts(); // 重新配置看门狗

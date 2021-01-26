@@ -27,9 +27,9 @@
 /*
 
 Interrupt , a high-priority interrupt, is used for several things:
-- Dport access mediation
-- Cache error panic handler
-- Interrupt watchdog panic handler
+- Dport access mediation            Dport访问中介
+- Cache error panic handler         缓存错误紧急处理程序
+- Interrupt watchdog panic handler  中断看门狗紧急处理程序
 
 */
 
@@ -72,6 +72,7 @@ xt_highint4:
 
 #if CONFIG_ESP32_ECO3_CACHE_LOCK_FIX && CONFIG_ESP_INT_WDT
     /* See if we're here for the tg1 watchdog interrupt */
+    // 看看我们是否在这里等待tg1看门狗中断
     rsr     a0, INTERRUPT
     extui   a0, a0, ETS_T1_WDT_INUM, 1
     beqz    a0, 1f
@@ -87,18 +88,19 @@ xt_highint4:
 #endif
 
     /* Allocate exception frame and save minimal context. */
+    // 分配异常框架并保存最少的上下文
 1:  mov     a0, sp
     addi    sp, sp, -XT_STK_FRMSZ
     s32i    a0, sp, XT_STK_A1
     #if XCHAL_HAVE_WINDOWED
-    s32e    a0, sp, -12                     /* for debug backtrace */
+    s32e    a0, sp, -12                     /* for debug backtrace   用于调试回溯 */
     #endif
-    rsr     a0, PS                          /* save interruptee's PS */
+    rsr     a0, PS                          /* save interruptee's PS 保存被终端者的PS */
     s32i    a0, sp, XT_STK_PS
-    rsr     a0, EPC_4                       /* save interruptee's PC */
+    rsr     a0, EPC_4                       /* save interruptee's PC 保存被终端者的PS */
     s32i    a0, sp, XT_STK_PC
     #if XCHAL_HAVE_WINDOWED
-    s32e    a0, sp, -16                     /* for debug backtrace */
+    s32e    a0, sp, -16                     /* for debug backtrace 用于调试回溯 */
     #endif
     s32i    a12, sp, XT_STK_A12             /* _xt_context_save requires A12- */
     s32i    a13, sp, XT_STK_A13             /* A13 to have already been saved */
