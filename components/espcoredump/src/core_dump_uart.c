@@ -114,7 +114,7 @@ static esp_err_t esp_core_dump_uart_write_data(void *priv, void * data, uint32_t
     while (addr < end) {
         size_t len = end - addr;
         if (len > 48) len = 48;
-        /* Copy to stack to avoid alignment restrictions. */
+        // 复制到堆栈以避免对齐限制
         char *tmp = buf + (sizeof(buf) - len);
         memcpy(tmp, addr, len);
         esp_core_dump_b64_encode((const uint8_t *)tmp, len, (uint8_t *)buf);

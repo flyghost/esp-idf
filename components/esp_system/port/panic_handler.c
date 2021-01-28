@@ -200,6 +200,7 @@ void panicHandler(void *frame)
     // faults cache error, wdt expiry. EXCAUSE register gets written with
     // one of PANIC_RSN_* values.
     // 双重异常向量、内核异常向量、基于中断的故障缓存错误、看门狗到期
+    // gdb调试也会进入
     panic_handler(frame, true);
 }
 

@@ -436,6 +436,7 @@ static esp_err_t esp_core_dump_get_regs_from_stack(void* stack_addr,
     return ESP_OK;
 }
 
+// 获取任务的寄存器dump
 uint32_t esp_core_dump_get_task_regs_dump(core_dump_task_header_t *task, void **reg_dump)
 {
     uint32_t stack_vaddr, stack_paddr, stack_len;

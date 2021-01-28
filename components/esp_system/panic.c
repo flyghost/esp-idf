@@ -288,7 +288,7 @@ void esp_panic_handler(panic_info_t *info)
     }
 
     // 喂狗，这样他们会给我们时间打印调试信息
-    // 关闭IWDT，启动TWDT，配置1秒后复位cpu
+    // 关闭IWDT，启动TWDT，配置1秒后重置系统
     reconfigure_all_wdts();
 
     PANIC_INFO_DUMP(info, state);   // 打印寄存器state
@@ -344,9 +344,11 @@ void esp_panic_handler(panic_info_t *info)
     }
 #endif /* CONFIG_ESP_COREDUMP_ENABLE */
 
-    wdt_hal_write_protect_disable(&rtc_wdt_ctx);// 禁止写入保护
-    wdt_hal_disable(&rtc_wdt_ctx);              // 禁止RTC开门狗
-    wdt_hal_write_protect_enable(&rtc_wdt_ctx); // 使能写入保护
+    // 关闭RTC看门狗
+    wdt_hal_write_protect_disable(&rtc_wdt_ctx);
+    wdt_hal_disable(&rtc_wdt_ctx);              
+    wdt_hal_write_protect_enable(&rtc_wdt_ctx); 
+    
 #if CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT || CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT
 
     if (esp_reset_reason_get_hint() == ESP_RST_UNKNOWN) {

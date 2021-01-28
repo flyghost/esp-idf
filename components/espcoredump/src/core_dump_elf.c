@@ -265,6 +265,7 @@ static int elf_add_regs(core_dump_elf_t *self, core_dump_task_header_t *task)
 {
     void *reg_dump;
 
+    // 获取任务的寄存器dump
     uint32_t len = esp_core_dump_get_task_regs_dump(task, &reg_dump);
     if (len == 0) {
         ESP_COREDUMP_LOGE("Zero size register dump for task 0x%x!", task->tcb_addr);
@@ -272,6 +273,7 @@ static int elf_add_regs(core_dump_elf_t *self, core_dump_task_header_t *task)
     }
 
     // append note data with dump to existing note
+    // 构建note结构体，并发送到串口或者flash
     return elf_add_note(self,
                         "CORE",                // note name
                         ELF_CORE_SEC_TYPE,     // note type for reg dump
@@ -295,6 +297,7 @@ static int elf_add_stack(core_dump_elf_t *self, core_dump_task_header_t *task)
     return ret;
 }
 
+// 构造elf_phdr，将其写入uart或者flash，并返回其大小
 static int elf_add_tcb(core_dump_elf_t *self, core_dump_task_header_t *task)
 {
     ELF_CHECK_ERR((task), ELF_PROC_ERR_OTHER, "Invalid task pointer.");
@@ -341,7 +344,7 @@ static int elf_process_task_regdump(core_dump_elf_t *self, panic_info_t *info, c
 
     if (self->elf_stage == ELF_STAGE_CALC_SPACE) {
         // Check if task tcb is corrupted (do not update the header, save as is)
-        // 检查任务tcb是否已损坏（不更新标头，按原样保存）
+        // 检查任务tcb是否已损坏（不更新header，按原样保存）
         task_is_valid = esp_core_dump_check_task(info, task, &task_is_current, NULL);
         if (!task_is_valid) {
             if (task_is_current) {
@@ -368,6 +371,7 @@ static int elf_process_task_tcb(core_dump_elf_t *self, core_dump_task_header_t *
     ELF_CHECK_ERR((task), ELF_PROC_ERR_OTHER, "Invalid input data.");
 
     // save tcb of the task as is and apply segment size
+    // 构造elf_phdr，将其写入uart或者flash，并返回其大小
     ret = elf_add_tcb(self, task);
     if (ret > 0) {
         ESP_COREDUMP_LOG_PROCESS("Task (TCB:%x) processing completed.",
@@ -472,6 +476,7 @@ static int elf_process_tasks_regs(core_dump_elf_t *self, panic_info_t *info,
     ELF_CHECK_ERR((ret > 0), ret,
                     "PR_STATUS note segment processing failure, returned(%d).", ret);
 
+    // coredump发生在中断里
     if (esp_core_dump_in_isr_context()) {
         if (self->elf_stage == ELF_STAGE_CALC_SPACE) {
             // in this stage we can safely replace task's stack with IRQ's one
@@ -510,7 +515,9 @@ static int elf_write_tasks_data(core_dump_elf_t *self, panic_info_t *info,
 
     // processes all task's stack data and writes segment data into partition
     // if flash configuration is set
+    // 如果设置了flash配置，则处理所有任务的堆栈数据并将段数据写入分区
     for (task_id = 0; task_id < task_num; task_id++) {
+        // 构造elf_phdr，将其写入uart或者flash，并返回其大小
         ret = elf_process_task_tcb(self, tasks[task_id]);
         ELF_CHECK_ERR((ret > 0), ret,
                         "Task #%d, TCB write failed, return (%d).", task_id, ret);
@@ -604,6 +611,7 @@ static int esp_core_dump_do_write_elf_pass(core_dump_elf_t *self, panic_info_t *
 
     // Calculate whole size include headers for all tasks and main elf header
     // 计算整个大小包括所有任务的头和主elf头
+    // 
     data_sz = elf_write_tasks_data(self, info, tasks, task_num);
     ELF_CHECK_ERR((data_sz > 0), data_sz, "ELF Size writing error, returned (%d).", data_sz);
     tot_len += data_sz;
