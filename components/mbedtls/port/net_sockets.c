@@ -72,6 +72,16 @@ void mbedtls_net_init( mbedtls_net_context *ctx )
 /*
  * Initiate a TCP connection with host:port and the given protocol
  */
+
+// 与给定的 `host`、`port` 及 `proto` 协议建立网络连接
+// ctx: 入参，NET 网络配置结构体对象
+// host: 入参，指定的待连接主机名
+// port: 入参，指定的主机端口号
+// proto: 入参，指定的协议类型，MBEDTLS_NET_PROTO_TCP 或者 MBEDTLS_NET_PROTO_UDP
+// 返回：`= 0`成功
+// `- 0x0042`socket 创建失败
+// `- 0x0052`未知的主机名，DNS 解析失败
+// `- 0x0044`网络连接失败
 int mbedtls_net_connect( mbedtls_net_context *ctx, const char *host, const char *port, int proto )
 {
     int ret;
@@ -82,6 +92,7 @@ int mbedtls_net_connect( mbedtls_net_context *ctx, const char *host, const char 
     }
 
     /* Do name resolution with both IPv6 and IPv4 */
+    // 使用IPv6和IPv4进行名称解析
     memset( &hints, 0, sizeof( hints ) );
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = proto == MBEDTLS_NET_PROTO_UDP ? SOCK_DGRAM : SOCK_STREAM;

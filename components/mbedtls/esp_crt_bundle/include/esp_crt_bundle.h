@@ -24,11 +24,13 @@ extern "C" {
 
 
 /**
- * @brief      Attach and enable use of a bundle for certificate verification
+ * @brief      Attach and enable use of a bundle for certificate verification 附加并启用捆绑包以进行证书验证
  *
  * Attach and enable use of a bundle for certificate verification through a verification callback.
+ * 通过验证回调附加并启用捆绑软件以进行证书验证。
  * If no specific bundle has been set through esp_crt_bundle_set() it will default to the
  * bundle defined in menuconfig and embedded in the binary.
+ * 如果没有通过esp_crt_bundle_set（）设置特定的包，它将默认为menuconfig中定义并嵌入二进制文件中的包。
  *
  * @param[in]  conf      The config struct for the SSL connection.
  *

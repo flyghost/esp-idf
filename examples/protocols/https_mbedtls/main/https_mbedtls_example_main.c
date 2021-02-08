@@ -68,12 +68,12 @@ static void https_get_task(void *pvParameters)
     char buf[512];
     int ret, flags, len;
 
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_ssl_context ssl;
-    mbedtls_x509_crt cacert;
-    mbedtls_ssl_config conf;
-    mbedtls_net_context server_fd;
+    mbedtls_entropy_context entropy;    // 保存 ssl 熵配置
+    mbedtls_ctr_drbg_context ctr_drbg;  // 保存随机字节发生器配置
+    mbedtls_ssl_context ssl;            // 保存 ssl 基本数据
+    mbedtls_x509_crt cacert;            // 保存认证信息
+    mbedtls_ssl_config conf;            // 保存 ssl 配置信息
+    mbedtls_net_context server_fd;      // 保存文件描述符
 
     mbedtls_ssl_init(&ssl);
     mbedtls_x509_crt_init(&cacert);

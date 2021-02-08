@@ -43,7 +43,7 @@ static crt_bundle_t s_crt_bundle;
 
 static int esp_crt_check_signature(mbedtls_x509_crt *child, const uint8_t *pub_key_buf, size_t pub_key_len);
 
-
+// 检查证书签名
 static int esp_crt_check_signature(mbedtls_x509_crt *child, const uint8_t *pub_key_buf, size_t pub_key_len)
 {
     int ret = 0;
@@ -92,6 +92,7 @@ cleanup:
  * only verify the first untrusted link in the chain is signed by the
  * root certificate in the trusted bundle
 */
+// 链中的每个证书都会调用此回调
 int esp_crt_verify_callback(void *buf, mbedtls_x509_crt *crt, int depth, uint32_t *flags)
 {
     mbedtls_x509_crt *child = crt;
