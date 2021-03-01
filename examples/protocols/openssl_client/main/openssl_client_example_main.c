@@ -58,6 +58,8 @@ static void openssl_example_task(void *p)
     ESP_LOGI(TAG, IPSTR, IP2STR(ip4_addr));
 
     ESP_LOGI(TAG, "create SSL context ......");
+
+    // 创建SSL context
     ctx = SSL_CTX_new(TLSv1_1_client_method());
     if (!ctx) {
         ESP_LOGI(TAG, "failed");
@@ -66,6 +68,8 @@ static void openssl_example_task(void *p)
     ESP_LOGI(TAG, "OK");
 
     ESP_LOGI(TAG, "create socket ......");
+
+    // 创建套接，绑定，连接
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         ESP_LOGI(TAG, "failed");
@@ -98,6 +102,8 @@ static void openssl_example_task(void *p)
     ESP_LOGI(TAG, "OK");
 
     ESP_LOGI(TAG, "create SSL ......");
+
+    // 创建一个SSL
     ssl = SSL_new(ctx);
     if (!ssl) {
         ESP_LOGI(TAG, "failed");
@@ -105,10 +111,13 @@ static void openssl_example_task(void *p)
     }
     ESP_LOGI(TAG, "OK");
 
+    // 套接口绑定到SSL
     SSL_set_fd(ssl, sockfd);
 
     ESP_LOGI(TAG, "SSL connected to %s port %d ......",
         OPENSSL_EXAMPLE_TARGET_NAME, OPENSSL_EXAMPLE_TARGET_TCP_PORT);
+
+    // 连接SSL服务器
     ret = SSL_connect(ssl);
     if (!ret) {
         ESP_LOGI(TAG, "failed " );
@@ -118,6 +127,8 @@ static void openssl_example_task(void *p)
 
     ESP_LOGI(TAG, "send https request to %s port %d ......",
         OPENSSL_EXAMPLE_TARGET_NAME, OPENSSL_EXAMPLE_TARGET_TCP_PORT);
+    
+    // 给SSL服务器发送数据
     ret = SSL_write(ssl, send_data, send_bytes);
     if (ret <= 0) {
         ESP_LOGI(TAG, "failed");
@@ -125,6 +136,7 @@ static void openssl_example_task(void *p)
     }
     ESP_LOGI(TAG, "OK");
 
+    // 读取SSL服务发送的数据
     do {
         ret = SSL_read(ssl, recv_buf, OPENSSL_EXAMPLE_RECV_BUF_LEN - 1);
         if (ret <= 0) {
@@ -138,18 +150,18 @@ static void openssl_example_task(void *p)
     ESP_LOGI(TAG, "totally read %d bytes data from %s ......", recv_bytes, OPENSSL_EXAMPLE_TARGET_NAME);
 
 failed5:
-    SSL_shutdown(ssl);
+    SSL_shutdown(ssl);      // 关闭连接
 failed4:
-    SSL_free(ssl);
+    SSL_free(ssl);          // 释放SSL
     ssl = NULL;
 failed3:
-    close(sockfd);
+    close(sockfd);          // 关闭套接口
     sockfd = -1;
 failed2:
-    SSL_CTX_free(ctx);
+    SSL_CTX_free(ctx);      // 释放SSL context
     ctx = NULL;
 failed1:
-    vTaskDelete(NULL);
+    vTaskDelete(NULL);      // 删除当前线程
     return ;
 }
 
