@@ -137,6 +137,7 @@ int ssl_pm_new(SSL *ssl)
 
     const SSL_METHOD *method = ssl->method;
 
+    // 初始化SSL PM
     ssl_pm = ssl_mem_zalloc(sizeof(struct ssl_pm));
     if (!ssl_pm) {
         SSL_DEBUG(SSL_PLATFORM_ERROR_LEVEL, "no enough memory > (ssl_pm)");
@@ -146,15 +147,20 @@ int ssl_pm_new(SSL *ssl)
 
     max_content_len = ssl->ctx->read_buffer_len;
 
-    mbedtls_net_init(&ssl_pm->fd);
-    mbedtls_net_init(&ssl_pm->cl_fd);
+    mbedtls_net_init(&ssl_pm->fd);              // (mbedtls内部函数，port层重新实现)初始化 TLS 网络上下文，目前只有 fd 描述符
+    mbedtls_net_init(&ssl_pm->cl_fd);           // (mbedtls内部函数)SSL 上下文初始化，主要是清空 SSL 上下文对象，为 SSL 连接做准备。
 
-    mbedtls_ssl_config_init(&ssl_pm->conf);
-    mbedtls_ctr_drbg_init(&ssl_pm->ctr_drbg);
-    mbedtls_entropy_init(&ssl_pm->entropy);
-    mbedtls_ssl_init(&ssl_pm->ssl);
+    mbedtls_ssl_config_init(&ssl_pm->conf);     // (mbedtls内部函数)SSL 配置初始化，主要是清空 SSL 配置结构体对象，为 SSL 连接做准备
+    mbedtls_ctr_drbg_init(&ssl_pm->ctr_drbg);   // (mbedtls内部函数)清空 CTR_DRBG（SSL 随机字节发生器）上下文结构体对象，为 `mbedtls_ctr_drbg_seed` 做准备
+    mbedtls_entropy_init(&ssl_pm->entropy);     // (mbedtls内部函数)初始化 SSL 熵结构体对象
+    mbedtls_ssl_init(&ssl_pm->ssl);             // (mbedtls内部函数)设置根证书列表, 初始化根证书链表，主要是清空
 
-    ret = mbedtls_ctr_drbg_seed(&ssl_pm->ctr_drbg, mbedtls_entropy_func, &ssl_pm->entropy, pers, pers_len);
+    // // （mbedtls内部函数）为 SSL/TLS 熵设置熵源，方便产生子种子
+    ret = mbedtls_ctr_drbg_seed(&ssl_pm->ctr_drbg,      // CTR_DRBG 结构体对象
+                                mbedtls_entropy_func,   // (mbedtls内部函数)熵回调
+                                &ssl_pm->entropy,       // 熵结构体（mbedtls_entropy_context）对象
+                                pers,                   // 个性化数据（设备特定标识符），可以为空
+                                pers_len);              // 个性化数据长度
     if (ret) {
         SSL_DEBUG(SSL_PLATFORM_ERROR_LEVEL, "mbedtls_ctr_drbg_seed() return -0x%x", -ret);
         OPENSSL_PUT_LIB_ERROR(ERR_LIB_RAND, ret);
@@ -166,13 +172,21 @@ int ssl_pm_new(SSL *ssl)
     } else {
         endpoint = MBEDTLS_SSL_IS_CLIENT;
     }
-    ret = mbedtls_ssl_config_defaults(&ssl_pm->conf, endpoint, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+
+    // (mbedtls内部函数)加载默认的 SSL 配置
+    ret = mbedtls_ssl_config_defaults(&ssl_pm->conf,                // SSL 配置结构体对象
+                                      endpoint,                     // MBEDTLS_SSL_IS_CLIENT 或者 MBEDTLS_SSL_IS_SERVER
+                                      MBEDTLS_SSL_TRANSPORT_STREAM, // TLS:  MBEDTLS_SSL_TRANSPORT_STREAM
+                                                                    // DTLS: MBEDTLS_SSL_TRANSPORT_DATAGRAM
+                                      MBEDTLS_SSL_PRESET_DEFAULT);  // 预定义的 MBEDTLS_SSL_PRESET_XXX 类型值，
+                                                                    // 默认使用 MBEDTLS_SSL_PRESET_DEFAULT
     if (ret) {
         SSL_DEBUG(SSL_PLATFORM_ERROR_LEVEL, "mbedtls_ssl_config_defaults() return -0x%x", -ret);
         OPENSSL_PUT_LIB_ERROR(ERR_LIB_CONF, ret);
         goto mbedtls_err2;
     }
 
+    // 设置支持版本
     if (TLS_ANY_VERSION != ssl->version) {
         int min_version = ssl->ctx->min_version ? ssl->ctx->min_version : ssl->version;
         int max_version = ssl->ctx->max_version ? ssl->ctx->max_version : ssl->version;
@@ -186,29 +200,43 @@ int ssl_pm_new(SSL *ssl)
 
     if (ssl->ctx->ssl_alpn.alpn_status == ALPN_ENABLE) {
 #ifdef MBEDTLS_SSL_ALPN
+        // 设置支持的应用层协议
         mbedtls_ssl_conf_alpn_protocols( &ssl_pm->conf, ssl->ctx->ssl_alpn.alpn_list );
 #else
         SSL_DEBUG(SSL_PLATFORM_ERROR_LEVEL, "CONFIG_MBEDTLS_SSL_ALPN must be enabled to use ALPN", -1);
         OPENSSL_PUT_LIB_ERROR(ERR_LIB_SYS, ERR_R_FATAL);
 #endif // MBEDTLS_SSL_ALPN
     }
-    mbedtls_ssl_conf_rng(&ssl_pm->conf, mbedtls_ctr_drbg_random, &ssl_pm->ctr_drbg);
+
+    // (mbedtls内部函数)设置随机数生成器回调
+    mbedtls_ssl_conf_rng(&ssl_pm->conf,             // SSL 配置结构体对象
+                         mbedtls_ctr_drbg_random,   // 随机数生成器函数
+                         &ssl_pm->ctr_drbg);        // 随机数生成器函数参数
 
 #ifdef CONFIG_OPENSSL_LOWLEVEL_DEBUG
     mbedtls_debug_set_threshold(MBEDTLS_DEBUG_LEVEL);
     mbedtls_ssl_conf_dbg(&ssl_pm->conf, ssl_platform_debug, NULL);
 #else
+    // (mbedtls内部函数)
     mbedtls_ssl_conf_dbg(&ssl_pm->conf, NULL, NULL);
 #endif
 
-    ret = mbedtls_ssl_setup(&ssl_pm->ssl, &ssl_pm->conf);
+    // 设置 SSL 上下文
+    // 将 SSL 配置结构体对象设置到 SSL 上下文中
+    // (mbedtls内部函数)
+    ret = mbedtls_ssl_setup(&ssl_pm->ssl,   // SSL 上下文结构体对象
+                            &ssl_pm->conf); // SSL 配置结构体对象
     if (ret) {
         SSL_DEBUG(SSL_PLATFORM_ERROR_LEVEL, "mbedtls_ssl_setup() return -0x%x", -ret);
         OPENSSL_PUT_LIB_ERROR(ERR_LIB_CONF, ret);
         goto mbedtls_err2;
     }
-
-    mbedtls_ssl_set_bio(&ssl_pm->ssl, &ssl_pm->fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+    // 设置网络层读写接口，被 `mbedtls_ssl_read` 和 `mbedtls_ssl_write` 函数调用
+    mbedtls_ssl_set_bio(&ssl_pm->ssl, // SSL 上下文结构体对象
+                        &ssl_pm->fd, // socket 描述符
+                        mbedtls_net_send, // 网络层写回调函数
+                        mbedtls_net_recv, // 网络层读回调函数，TLS使用该回调函数接受数据
+                        NULL);// 网络层非阻塞带超时读回调函数，DTLS使用该回调接受数据，TLS也可以使用（如果recv和timeout都提供了）
 
     ssl->ssl_pm = ssl_pm;
     ret = ssl_pm_reload_crt(ssl);
@@ -218,10 +246,10 @@ int ssl_pm_new(SSL *ssl)
     return 0;
 
 mbedtls_err2:
-    mbedtls_ssl_config_free(&ssl_pm->conf);
-    mbedtls_ctr_drbg_free(&ssl_pm->ctr_drbg);
+    mbedtls_ssl_config_free(&ssl_pm->conf);     // (mbedtls内部函数) 释放 SSL 配置
+    mbedtls_ctr_drbg_free(&ssl_pm->ctr_drbg);   // (mbedtls内部函数) 释放 CTR_DRBG（SSL 随机字节发生器）上下文结构体对象
 mbedtls_err1:
-    mbedtls_entropy_free(&ssl_pm->entropy);
+    mbedtls_entropy_free(&ssl_pm->entropy);     // (mbedtls内部函数) 释放 SSL 熵结构体对象
     ssl_mem_free(ssl_pm);
 no_mem:
     return -1;
@@ -234,10 +262,10 @@ void ssl_pm_free(SSL *ssl)
 {
     struct ssl_pm *ssl_pm = (struct ssl_pm *)ssl->ssl_pm;
 
-    mbedtls_ctr_drbg_free(&ssl_pm->ctr_drbg);
-    mbedtls_entropy_free(&ssl_pm->entropy);
-    mbedtls_ssl_config_free(&ssl_pm->conf);
-    mbedtls_ssl_free(&ssl_pm->ssl);
+    mbedtls_ctr_drbg_free(&ssl_pm->ctr_drbg);   // (mbedtls内部函数) 释放 CTR_DRBG（SSL 随机字节发生器）上下文结构体对象
+    mbedtls_entropy_free(&ssl_pm->entropy);     // (mbedtls内部函数) 释放 SSL 熵结构体对象
+    mbedtls_ssl_config_free(&ssl_pm->conf);     // (mbedtls内部函数) 释放 SSL 配置
+    mbedtls_ssl_free(&ssl_pm->ssl);             // (mbedtls内部函数) 释放 SSL 上下文对象
 
     ssl_mem_free(ssl_pm);
     ssl->ssl_pm = NULL;
@@ -280,10 +308,18 @@ static int ssl_pm_reload_crt(SSL *ssl)
             mode = MBEDTLS_SSL_VERIFY_NONE;
     }
 
+    // (mbedtls内部函数)设置证书验证模式
+    // 服务器上为 `MBEDTLS_SSL_VERIFY_NONE`，
+    // 客户端上为 `MBEDTLS_SSL_VERIFY_REQUIRED` 或者 `MBEDTLS_SSL_VERIFY_OPTIONAL`（默认使用）
     mbedtls_ssl_conf_authmode(&ssl_pm->conf, mode);
 
     if (ca_pm->x509_crt) {
-        mbedtls_ssl_conf_ca_chain(&ssl_pm->conf, ca_pm->x509_crt, NULL);
+        // 设置验证对等证书所需的数据
+        // 将受信的证书链配置到 SSL 配置结构体对象中
+        // (mbedtls内部函数)
+        mbedtls_ssl_conf_ca_chain(&ssl_pm->conf,        // SSL 配置结构体对象
+                                  ca_pm->x509_crt,      // 受信的 CA 证书链，存储在 MbedTLSSession 的成员对象 cacert 中
+                                  NULL);                // 受信的 CA CRLs，可为空
     } else if (ca_pm->ex_crt) {
         mbedtls_ssl_conf_ca_chain(&ssl_pm->conf, ca_pm->ex_crt, NULL);
     }
@@ -308,6 +344,7 @@ static int ssl_pm_reload_crt(SSL *ssl)
 /*
  * Perform the mbedtls SSL handshake instead of mbedtls_ssl_handshake.
  * We can add debug here.
+ * 执行mbedtls SSL握手，而不是mbedtls_ssl_handshake。
  */
 static int mbedtls_handshake( mbedtls_ssl_context *ssl )
 {
@@ -333,7 +370,13 @@ int ssl_pm_handshake(SSL *ssl)
     if (ssl->bio) {
         // if using BIO, make sure the mode is supported
         SSL_ASSERT1(ssl->mode & (SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER));
-        mbedtls_ssl_set_bio(&ssl_pm->ssl, ssl->bio, mbedtls_bio_send, mbedtls_bio_recv, NULL);
+
+        // 设置网络层读写接口，被 `mbedtls_ssl_read` 和 `mbedtls_ssl_write` 函数调用
+        mbedtls_ssl_set_bio(&ssl_pm->ssl,       // SSL 上下文结构体对象
+                            ssl->bio,           // socket 描述符
+                            mbedtls_bio_send,   // 网络层写回调函数
+                            mbedtls_bio_recv,   // 网络层读回调函数，TLS使用该回调函数接受数据
+                            NULL);              // 网络层非阻塞带超时读回调函数，DTLS使用该回调接受数据，TLS也可以使用（如果recv和timeout都提供了）
     } else {
         // defaults to SSL_read/write using a file descriptor -- expects default mode
         SSL_ASSERT1(ssl->mode == 0);
