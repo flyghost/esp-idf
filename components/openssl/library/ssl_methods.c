@@ -18,6 +18,24 @@
 /**
  * TLS method function collection
  */
+/*
+static const SSL_METHOD_FUNC TLS_method_func LOCAL_ATRR = 
+{ 
+    ssl_pm_new, 
+    ssl_pm_free, 
+    ssl_pm_handshake, 
+    ssl_pm_shutdown, 
+    ssl_pm_clear, 
+    ssl_pm_read, 
+    ssl_pm_send, 
+    ssl_pm_pending, 
+    ssl_pm_set_fd, 
+    ssl_pm_set_hostname, 
+    ssl_pm_get_fd, 
+    ssl_pm_set_bufflen, 
+    ssl_pm_get_verify_result, 
+    ssl_pm_get_state 
+};*/
 IMPLEMENT_TLS_METHOD_FUNC(TLS_method_func,
         ssl_pm_new, ssl_pm_free,
         ssl_pm_handshake, ssl_pm_shutdown, ssl_pm_clear,
@@ -30,6 +48,12 @@ IMPLEMENT_TLS_METHOD_FUNC(TLS_method_func,
 /**
  * TLS or SSL client method collection
  */
+/*
+const SSL_METHOD* TLS_client_method(void) 
+{ 
+    static const SSL_METHOD TLS_client_method_data LOCAL_ATRR = { TLS_ANY_VERSION, 0, &(TLS_method_func), }; 
+    return &TLS_client_method_data; 
+}*/
 IMPLEMENT_TLS_METHOD(TLS_ANY_VERSION, 0, TLS_method_func, TLS_client_method);
 
 IMPLEMENT_TLS_METHOD(TLS1_2_VERSION, 0, TLS_method_func, TLSv1_2_client_method);
@@ -69,6 +93,12 @@ IMPLEMENT_SSL_METHOD(SSL3_VERSION, -1, TLS_method_func, SSLv3_method);
 /**
  * @brief get X509 object method
  */
+/*
+const X509_METHOD* X509_method(void) 
+{ 
+    static const X509_METHOD X509_method_data LOCAL_ATRR = { x509_pm_new, x509_pm_free, x509_pm_load, x509_pm_show_info }; 
+    return &X509_method_data; 
+}*/
 IMPLEMENT_X509_METHOD(X509_method,
             x509_pm_new, x509_pm_free,
             x509_pm_load, x509_pm_show_info);
