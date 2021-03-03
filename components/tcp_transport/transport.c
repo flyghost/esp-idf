@@ -309,6 +309,7 @@ void esp_transport_set_errors(esp_transport_handle_t t, const esp_tls_error_hand
     }
 }
 
+// 保存套接口错误码
 void esp_transport_capture_errno(esp_transport_handle_t t, int sock_errno)
 {
     if (t && t->error_handle) {

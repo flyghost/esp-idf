@@ -46,9 +46,11 @@ typedef struct {
 
 static int ssl_close(esp_transport_handle_t t);
 
+// 异步/非堵塞连接
 static int ssl_connect_async(esp_transport_handle_t t, const char *host, int port, int timeout_ms)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
+
     if (ssl->conn_state == TRANS_SSL_INIT) {
         ssl->cfg.timeout_ms = timeout_ms;
         ssl->cfg.non_block = true;
@@ -60,11 +62,13 @@ static int ssl_connect_async(esp_transport_handle_t t, const char *host, int por
         ssl->conn_state = TRANS_SSL_CONNECTING;
     }
     if (ssl->conn_state == TRANS_SSL_CONNECTING) {
+        // 创建TLS/SSL异步（非堵塞）连接
         return esp_tls_conn_new_async(host, strlen(host), port, &ssl->cfg, ssl->tls);
     }
     return 0;
 }
 
+// 同步/堵塞连接
 static int ssl_connect(esp_transport_handle_t t, const char *host, int port, int timeout_ms)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -72,6 +76,7 @@ static int ssl_connect(esp_transport_handle_t t, const char *host, int port, int
     ssl->cfg.timeout_ms = timeout_ms;
     ssl->ssl_initialized = true;
     ssl->tls = esp_tls_init();
+    // 创建TLS/SSL同步（堵塞）连接
     if (esp_tls_conn_new_sync(host, strlen(host), port, &ssl->cfg, ssl->tls) <= 0) {
         ESP_LOGE(TAG, "Failed to open a new connection");
         esp_transport_set_errors(t, ssl->tls->error_handle);
@@ -83,6 +88,7 @@ static int ssl_connect(esp_transport_handle_t t, const char *host, int port, int
     return 0;
 }
 
+// 读数据预处理
 static int ssl_poll_read(esp_transport_handle_t t, int timeout_ms)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -96,6 +102,7 @@ static int ssl_poll_read(esp_transport_handle_t t, int timeout_ms)
     FD_SET(ssl->tls->sockfd, &readset);
     FD_SET(ssl->tls->sockfd, &errset);
 
+    // 检测缓冲区是否还有数据未读
     if ((remain = esp_tls_get_bytes_avail(ssl->tls)) > 0) {
         ESP_LOGD(TAG, "remain data in cache, need to read again");
         return remain;
@@ -112,6 +119,7 @@ static int ssl_poll_read(esp_transport_handle_t t, int timeout_ms)
     return ret;
 }
 
+// 写数据预处理
 static int ssl_poll_write(esp_transport_handle_t t, int timeout_ms)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -135,6 +143,7 @@ static int ssl_poll_write(esp_transport_handle_t t, int timeout_ms)
     return ret;
 }
 
+// 写数据
 static int ssl_write(esp_transport_handle_t t, const char *buffer, int len, int timeout_ms)
 {
     int poll, ret;
@@ -152,6 +161,7 @@ static int ssl_write(esp_transport_handle_t t, const char *buffer, int len, int 
     return ret;
 }
 
+// 读数据
 static int ssl_read(esp_transport_handle_t t, char *buffer, int len, int timeout_ms)
 {
     int poll, ret;
@@ -171,8 +181,9 @@ static int ssl_read(esp_transport_handle_t t, char *buffer, int len, int timeout
     return ret;
 }
 
+// 关闭ssl连接
 static int ssl_close(esp_transport_handle_t t)
-{
+{   
     int ret = -1;
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
     if (ssl->ssl_initialized) {
@@ -183,14 +194,16 @@ static int ssl_close(esp_transport_handle_t t)
     return ret;
 }
 
+// 销毁ssl
 static int ssl_destroy(esp_transport_handle_t t)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
-    esp_transport_close(t);
-    free(ssl);
+    esp_transport_close(t);     // 调用的是ssl close
+    free(ssl);                  // 释放内存
     return 0;
 }
 
+// 设置所有连接使用全局的ca_store
 void esp_transport_ssl_enable_global_ca_store(esp_transport_handle_t t)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -207,6 +220,7 @@ void esp_transport_ssl_set_psk_key_hint(esp_transport_handle_t t, const psk_hint
     }
 }
 
+// 设置pem格式的证书
 void esp_transport_ssl_set_cert_data(esp_transport_handle_t t, const char *data, int len)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -215,7 +229,7 @@ void esp_transport_ssl_set_cert_data(esp_transport_handle_t t, const char *data,
         ssl->cfg.cacert_pem_bytes = len + 1;
     }
 }
-
+// 设置der格式的证书
 void esp_transport_ssl_set_cert_data_der(esp_transport_handle_t t, const char *data, int len)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -225,6 +239,7 @@ void esp_transport_ssl_set_cert_data_der(esp_transport_handle_t t, const char *d
     }
 }
 
+// 设置客户端pem格式的证书
 void esp_transport_ssl_set_client_cert_data(esp_transport_handle_t t, const char *data, int len)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -234,6 +249,7 @@ void esp_transport_ssl_set_client_cert_data(esp_transport_handle_t t, const char
     }
 }
 
+// 设置客户端der格式的证书
 void esp_transport_ssl_set_client_cert_data_der(esp_transport_handle_t t, const char *data, int len)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -243,6 +259,7 @@ void esp_transport_ssl_set_client_cert_data_der(esp_transport_handle_t t, const 
     }
 }
 
+// 设置客户端pem格式证书的秘钥
 void esp_transport_ssl_set_client_key_data(esp_transport_handle_t t, const char *data, int len)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -252,6 +269,7 @@ void esp_transport_ssl_set_client_key_data(esp_transport_handle_t t, const char 
     }
 }
 
+// 设置客户端pem秘钥的解密密码字符串
 void esp_transport_ssl_set_client_key_password(esp_transport_handle_t t, const char *password, int password_len)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -261,6 +279,7 @@ void esp_transport_ssl_set_client_key_password(esp_transport_handle_t t, const c
     }
 }
 
+// 设置客户端der秘钥的解密密码字符串
 void esp_transport_ssl_set_client_key_data_der(esp_transport_handle_t t, const char *data, int len)
 {
     transport_ssl_t *ssl = esp_transport_get_context_data(t);
@@ -294,6 +313,7 @@ void esp_transport_ssl_use_secure_element(esp_transport_handle_t t)
     }
 }
 
+// 获取socket描述符
 static int ssl_get_socket(esp_transport_handle_t t)
 {
     if (t) {

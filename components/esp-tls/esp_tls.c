@@ -350,6 +350,7 @@ esp_tls_t *esp_tls_conn_new(const char *hostname, int hostlen, int port, const e
     return NULL;
 }
 
+// 创建TLS/SSL同步（堵塞）连接
 int esp_tls_conn_new_sync(const char *hostname, int hostlen, int port, const esp_tls_cfg_t *cfg, esp_tls_t *tls)
 {
     /* esp_tls_conn_new_sync() is a sync alternative to esp_tls_conn_new_async() with symmetric function prototype
@@ -378,6 +379,7 @@ int esp_tls_conn_new_sync(const char *hostname, int hostlen, int port, const esp
 /*
  * @brief      Create a new TLS/SSL non-blocking connection
  */
+// 创建TLS/SSL异步（非堵塞）连接
 int esp_tls_conn_new_async(const char *hostname, int hostlen, int port, const esp_tls_cfg_t *cfg, esp_tls_t *tls)
 {
     return esp_tls_low_level_conn(hostname, hostlen, port, cfg, tls);

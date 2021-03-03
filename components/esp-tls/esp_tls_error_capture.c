@@ -39,8 +39,10 @@ void esp_tls_internal_event_tracker_capture(esp_tls_error_handle_t h, uint32_t t
     }
 }
 
+// 创建错误存储
 esp_tls_error_handle_t esp_tls_internal_event_tracker_create(void)
 {
+    // 分配内部错误存储，以扩展在接口级别定义的父类型“ esp_tls_last_error”
     // Allocating internal error storage which extends the parent type
     // `esp_tls_last_error` defined at interface level
     struct esp_tls_error_storage* storage =
