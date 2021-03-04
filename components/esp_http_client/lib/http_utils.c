@@ -24,6 +24,7 @@
 #define mem_check(x) assert(x)
 #endif
 
+// 合并两个字符串
 char *http_utils_join_string(const char *first_str, int len_first, const char *second_str, int len_second)
 {
     int first_str_len = len_first > 0 ? len_first : strlen(first_str);
@@ -38,6 +39,7 @@ char *http_utils_join_string(const char *first_str, int len_first, const char *s
     return ret;
 }
 
+// 用新的字符串替代旧的字符串
 char *http_utils_assign_string(char **str, const char *new_str, int len)
 {
     int l = len;
@@ -61,6 +63,7 @@ char *http_utils_assign_string(char **str, const char *new_str, int len)
     return old_str;
 }
 
+// 
 void http_utils_trim_whitespace(char **str)
 {
     char *end, *start;
@@ -72,8 +75,10 @@ void http_utils_trim_whitespace(char **str)
         return;
     }
     // Trim leading space
+    // 去处一开始的空白字符
     while (isspace((unsigned char)*start)) start ++;
 
+    // 字符串结束符标志，说明整个字符串都是空白字符
     if (*start == 0) {  // All spaces?
         **str = 0;
         return;
